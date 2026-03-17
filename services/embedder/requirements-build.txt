@@ -1,0 +1,4 @@
+torch
+FlagEmbedding
+transformers<5.0.0
+onnxscript

@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Git
+.gitignore
+
+# Model
+bge-m3/
+
+# MacOS
+.DS_Store
