@@ -43,7 +43,7 @@ class RerankResponse(BaseModel):
     scores: list[float]
 
 
-@app.post("/rerank")
+@app.post("/rerank", response_model=RerankResponse)
 def rerank(req: RerankRequest):
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="Query is empty")
