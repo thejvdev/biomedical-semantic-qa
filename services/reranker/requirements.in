@@ -1,0 +1,10 @@
+# Build
+optimum-onnx[onnxruntime]
+
+# App
+fastapi
+pydantic
+uvicorn[standard]
+onnxruntime
+tokenizers
+numpy
