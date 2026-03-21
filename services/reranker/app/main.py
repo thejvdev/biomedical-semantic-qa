@@ -1,6 +1,6 @@
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from tokenizers import Tokenizer
 import onnxruntime as ort
@@ -14,16 +14,16 @@ TOKENIZER_PATH = MODEL_DIR / "tokenizer.json"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.tokenizer = Tokenizer.from_file(str(TOKENIZER_PATH))
-    app.tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
-    app.tokenizer.enable_truncation(max_length=512)
+    app.state.tokenizer = Tokenizer.from_file(str(TOKENIZER_PATH))
+    app.state.tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
+    app.state.tokenizer.enable_truncation(max_length=512)
 
     sess_options = ort.SessionOptions()
     sess_options.intra_op_num_threads = 0
     sess_options.inter_op_num_threads = 1
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
-    app.session = ort.InferenceSession(
+    app.state.session = ort.InferenceSession(
         str(MODEL_PATH), sess_options=sess_options, providers=["CPUExecutionProvider"]
     )
 
@@ -44,24 +44,27 @@ class RerankResponse(BaseModel):
 
 
 @app.post("/rerank", response_model=RerankResponse)
-def rerank(req: RerankRequest):
-    if not req.query.strip():
+def rerank(req: Request, body: RerankRequest):
+    if not body.query.strip():
         raise HTTPException(status_code=400, detail="Query is empty")
 
-    if not req.texts:
+    if not body.texts:
         raise HTTPException(status_code=400, detail="Texts list is empty")
 
-    pairs = [(req.query, text) for text in req.texts]
-    encodings = app.tokenizer.encode_batch(pairs)
+    tokenizer = req.app.state.tokenizer
+    session = req.app.state.session
+
+    pairs = [(body.query, text) for text in body.texts]
+    encodings = tokenizer.encode_batch(pairs)
 
     input_ids = np.array([e.ids for e in encodings], dtype=np.int64)
     attention_mask = np.array([e.attention_mask for e in encodings], dtype=np.int64)
     onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
 
-    outputs = app.session.run(None, onnx_inputs)
+    outputs = session.run(None, onnx_inputs)
     scores = outputs[0].flatten()
 
-    if req.return_proba:
+    if body.return_proba:
         probabilities = 1 / (1 + np.exp(-scores))
         scores = probabilities
 
