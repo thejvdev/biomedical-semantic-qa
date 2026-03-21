@@ -6,7 +6,9 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /build
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential zlib1g-dev \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements-build.txt requirements.txt
