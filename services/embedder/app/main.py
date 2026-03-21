@@ -1,6 +1,6 @@
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from tokenizers import Tokenizer
 import onnxruntime as ort
@@ -15,16 +15,16 @@ SPECIAL_TOKENS = {0, 1, 2}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.tokenizer = Tokenizer.from_file(str(TOKENIZER_PATH))
-    app.tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
-    app.tokenizer.enable_truncation(max_length=8192)
+    app.state.tokenizer = Tokenizer.from_file(str(TOKENIZER_PATH))
+    app.state.tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
+    app.state.tokenizer.enable_truncation(max_length=8192)
 
     sess_options = ort.SessionOptions()
     sess_options.intra_op_num_threads = 0
     sess_options.inter_op_num_threads = 1
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
-    app.session = ort.InferenceSession(
+    app.state.session = ort.InferenceSession(
         str(MODEL_PATH), sess_options=sess_options, providers=["CPUExecutionProvider"]
     )
 
@@ -63,27 +63,32 @@ def build_sparse_dicts(input_ids: np.ndarray, token_weights: np.ndarray) -> list
 
 
 @app.post("/embed", response_model=EmbedResponse)
-def embed(req: EmbedRequest):
-    if not req.texts:
+def embed(req: Request, body: EmbedRequest):
+    if not body.texts:
         raise HTTPException(status_code=400, detail="Texts list is empty")
 
-    if not any([req.return_dense, req.return_sparse, req.return_colbert]):
+    if not any([body.return_dense, body.return_sparse, body.return_colbert]):
         raise HTTPException(
             status_code=400, detail="At least one output must be requested"
         )
 
-    encodings = app.tokenizer.encode_batch(req.texts)
+    tokenizer = req.app.state.tokenizer
+    session = req.app.state.session
+
+    encodings = tokenizer.encode_batch(body.texts)
 
     input_ids = np.array([e.ids for e in encodings], dtype=np.int64)
     attention_mask = np.array([e.attention_mask for e in encodings], dtype=np.int64)
     onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
 
-    dense, sparse_weights, colbert = app.session.run(None, onnx_inputs)
+    dense, sparse_weights, colbert = session.run(None, onnx_inputs)
 
     return {
-        "dense": dense.tolist() if req.return_dense else None,
+        "dense": dense.tolist() if body.return_dense else None,
         "sparse": (
-            build_sparse_dicts(input_ids, sparse_weights) if req.return_sparse else None
+            build_sparse_dicts(input_ids, sparse_weights)
+            if body.return_sparse
+            else None
         ),
-        "colbert": colbert.tolist() if req.return_colbert else None,
+        "colbert": colbert.tolist() if body.return_colbert else None,
     }
