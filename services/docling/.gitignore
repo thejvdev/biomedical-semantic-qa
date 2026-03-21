@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+
+# Misc
+examples/
+*.json
+!tokenizer.json
+
+# MacOS
+.DS_Store
