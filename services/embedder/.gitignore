@@ -1,0 +1,9 @@
+# Python
+.venv/
+__pycache__/
+
+# Model
+bge-m3/
+
+# MacOS
+.DS_Store

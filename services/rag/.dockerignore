@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Git
+.gitignore
+
+# Secrets
+.env*
+
+# Misc
+examples/
+results/
+
+# MacOS
+.DS_Store

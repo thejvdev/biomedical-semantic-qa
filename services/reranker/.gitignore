@@ -1,0 +1,9 @@
+# Python
+.venv/
+__pycache__/
+
+# Model
+bge-reranker-v2-m3/
+
+# MacOS
+.DS_Store

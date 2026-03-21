@@ -1,0 +1,13 @@
+# Build
+torch
+FlagEmbedding
+transformers<5.0.0
+onnxscript
+
+# App
+fastapi
+pydantic
+uvicorn[standard]
+onnxruntime
+tokenizers
+numpy
