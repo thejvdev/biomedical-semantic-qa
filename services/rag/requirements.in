@@ -2,3 +2,4 @@ dotenv
 httpx
 qdrant-client
 lxml
+tqdm
