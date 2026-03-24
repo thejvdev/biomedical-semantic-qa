@@ -30,7 +30,7 @@ async def ingest_document(
     if log:
         save_json(log_dir / "ingestion/1_chunks.json", chunks)
 
-    texts = [flatten_article(chunk) for chunk in chunks[:50]]
+    texts = [flatten_article(chunk) for chunk in chunks]
     vectors = await embed(
         embedder, texts=texts, return_sparse=with_sparse, batch_size=batch_size
     )
