@@ -16,21 +16,27 @@ async def create_collection(
         return
 
     vectors_config = models.VectorParams(
-        size=vector_size, distance=models.Distance.COSINE
+        size=vector_size, distance=models.Distance.COSINE, on_disk=True
     )
 
     sparse_config = None
     if with_sparse:
         sparse_config = {
             "sparse": models.SparseVectorParams(
-                index=models.SparseIndexParams(full_scan_threshold=1000)
+                index=models.SparseIndexParams(full_scan_threshold=10000, on_disk=True)
             )
         }
+
+    hnsw_config = models.HnswConfigDiff(m=32, ef_construct=128)
+
+    optimizers_config = models.OptimizersConfigDiff(memmap_threshold=100000)
 
     await qdrant.create_collection(
         collection_name=collection_name,
         vectors_config=vectors_config,
         sparse_vectors_config=sparse_config,
+        hnsw_config=hnsw_config,
+        optimizers_config=optimizers_config,
     )
 
     if log:

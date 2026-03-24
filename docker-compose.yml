@@ -7,22 +7,16 @@ services:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
 
-  docling:
-    build: ./services/docling
-    ports:
-      - 8001:8000
-    restart: unless-stopped
-
   embedder:
     build: ./services/embedder
     ports:
-      - 8002:8000
+      - 8001:8000
     restart: unless-stopped
 
   reranker:
     build: ./services/reranker
     ports:
-      - 8003:8000
+      - 8002:8000
     restart: unless-stopped
 
 volumes:

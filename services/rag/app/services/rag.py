@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Literal
 import httpx
@@ -9,34 +10,33 @@ from app.crud.qdrant import (
     similarity_search,
     hybrid_search,
 )
-from app.services.docling import chunk_document
+from app.services.ingestion import parse_document, flatten_article
 from app.services.embedder import embed
 from app.services.reranker import rerank
 
 
 async def ingest_document(
-    file_path: Path,
+    file_path: str | Path,
     collection_name: str,
     *,
     qdrant: AsyncQdrantClient,
-    docling: httpx.AsyncClient,
     embedder: httpx.AsyncClient,
     with_sparse: bool = False,
     batch_size: int = 16,
     log: bool = False,
     log_dir: Path = RESULTS_DIR,
 ):
-    chunks = await chunk_document(docling, file_path)
+    chunks = await asyncio.to_thread(parse_document, file_path)
     if log:
-        save_json(log_dir / "a1_chunks.json", chunks)
+        save_json(log_dir / "ingestion/1_chunks.json", chunks)
 
-    texts = [chunk["content"] for chunk in chunks]
+    texts = [flatten_article(chunk) for chunk in chunks[:50]]
     vectors = await embed(
         embedder, texts=texts, return_sparse=with_sparse, batch_size=batch_size
     )
 
     if log:
-        save_json(log_dir / "a2_vectors.json", vectors)
+        save_json(log_dir / "ingestion/2_vectors.json", vectors)
 
     dense_vectors = vectors["dense"]
     sparse_vectors = vectors["sparse"] if with_sparse else None
@@ -47,6 +47,7 @@ async def ingest_document(
         dense_vectors=dense_vectors,
         sparse_vectors=sparse_vectors,
         metadatas=chunks,
+        log=log,
     )
 
 
@@ -73,7 +74,7 @@ async def query_documents(
 
     query_vectors = await embed(embedder, [query], return_sparse=with_sparse)
     if log:
-        save_json(log_dir / "b1_query_vector.json", query_vectors)
+        save_json(log_dir / "search/1_query_vector.json", query_vectors)
 
     dense_query = query_vectors["dense"][0]
     sparse_query = query_vectors["sparse"][0] if with_sparse else None
@@ -99,9 +100,9 @@ async def query_documents(
         )
 
     if log:
-        save_json(log_dir / "b2_similarity.json", scored_points)
+        save_json(log_dir / "search/2_similarity.json", scored_points)
 
-    candidates = [point["payload"]["content"] for point in scored_points]
+    candidates = [flatten_article(point["payload"]) for point in scored_points]
     reranked = await rerank(
         reranker,
         query=query,
@@ -111,7 +112,7 @@ async def query_documents(
     )
 
     reranked_chunks = [
-        {"content": point["payload"]["content"], "score": score}
+        {"article": point["payload"], "score": score}
         for point, score in zip(scored_points, reranked)
     ]
     reranked_chunks = sorted(reranked_chunks, key=lambda x: x["score"], reverse=True)[
@@ -119,6 +120,6 @@ async def query_documents(
     ]
 
     if log:
-        save_json(log_dir / "b3_reranked.json", reranked_chunks)
+        save_json(log_dir / "search/3_reranked.json", reranked_chunks)
 
     return reranked_chunks
