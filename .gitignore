@@ -3,6 +3,7 @@
 __pycache__/
 
 # Misc
+BioASQ-training14b/
 *.json
 
 # MacOS

@@ -1,5 +1,4 @@
-fastapi
-pydantic
-uvicorn[standard]
+dotenv
 httpx
 qdrant-client
+lxml
