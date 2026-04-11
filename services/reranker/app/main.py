@@ -23,9 +23,24 @@ async def lifespan(app: FastAPI):
     sess_options.inter_op_num_threads = 1
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
+    providers = [
+        (
+            "CUDAExecutionProvider",
+            {
+                "device_id": 0,
+            },
+        ),
+        "CPUExecutionProvider",  # fallback
+    ]
+
     app.state.session = ort.InferenceSession(
-        str(MODEL_PATH), sess_options=sess_options, providers=["CPUExecutionProvider"]
+        str(MODEL_PATH),
+        sess_options=sess_options,
+        providers=providers,
     )
+
+    print("Available providers:", ort.get_available_providers())
+    print("Session providers:", app.state.session.get_providers())
 
     yield
 
@@ -59,13 +74,16 @@ def rerank(req: Request, body: RerankRequest):
 
     input_ids = np.array([e.ids for e in encodings], dtype=np.int64)
     attention_mask = np.array([e.attention_mask for e in encodings], dtype=np.int64)
-    onnx_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
+
+    onnx_inputs = {
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+    }
 
     outputs = session.run(None, onnx_inputs)
     scores = outputs[0].flatten()
 
     if body.return_proba:
-        probabilities = 1 / (1 + np.exp(-scores))
-        scores = probabilities
+        scores = 1 / (1 + np.exp(-scores))
 
     return {"scores": scores.tolist()}
