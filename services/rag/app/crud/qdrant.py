@@ -1,6 +1,8 @@
+import json
 import uuid
 from typing import Literal
 from qdrant_client import AsyncQdrantClient, models
+from itertools import islice
 
 
 async def create_collection(
@@ -52,19 +54,30 @@ async def delete_collection(
             print(f"Collection '{collection_name}' deleted successfully.")
 
 
+def batched(iterable, size):
+    it = iter(iterable)
+    while True:
+        batch = list(islice(it, size))
+        if not batch:
+            break
+        yield batch
+
+
+
 async def upsert_data(
-    qdrant: AsyncQdrantClient,
+    qdrant,
     collection_name: str,
     dense_vectors: list[list[float]],
     metadatas: list[dict],
-    sparse_vectors: list[dict[int, float]] = None,
+    sparse_vectors: list[dict[int, float]] | None = None,
+    upsert_batch_size: int = 8,
     log: bool = True,
 ):
     sparse_iter = (
         sparse_vectors if sparse_vectors is not None else [None] * len(dense_vectors)
     )
 
-    points = []
+    all_points = []
     for dense, sparse, metadata in zip(dense_vectors, sparse_iter, metadatas):
         vectors = {"": dense}
 
@@ -74,18 +87,37 @@ async def upsert_data(
                 values=list(sparse.values()),
             )
 
-        points.append(
+        # лучше не класть весь metadata как есть, а только нужные поля
+        payload = metadata
+
+        all_points.append(
             models.PointStruct(
                 id=str(uuid.uuid4()),
                 vector=vectors,
-                payload=metadata,
+                payload=payload,
             )
         )
 
-    await qdrant.upsert(collection_name=collection_name, points=points)
+    total = 0
+    for batch in batched(all_points, upsert_batch_size):
+        # полезно временно смотреть размер батча
+        batch_as_dict = [p.model_dump(mode="json") for p in batch]
+        size_mb = len(json.dumps({"points": batch_as_dict}).encode("utf-8")) / 1024 / 1024
+        if log:
+            print(f"Uploading batch of {len(batch)} points, ~{size_mb:.2f} MB")
+
+        await qdrant.upsert(
+            collection_name=collection_name,
+            points=batch,
+            wait=True,
+        )
+        total += len(batch)
 
     if log:
-        print(f"Successfully upserted {len(points)} points to '{collection_name}'.")
+        print(f"Successfully upserted {total} points to '{collection_name}'.")
+
+
+
 
 
 async def similarity_search(

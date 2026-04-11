@@ -8,3 +8,7 @@ BioASQ-training14b/
 
 # MacOS
 .DS_Store
+
+
+# Dataset
+pubmed_dataset/

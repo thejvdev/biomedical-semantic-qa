@@ -24,8 +24,15 @@ async def lifespan(app: FastAPI):
     sess_options.inter_op_num_threads = 1
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
+    providers = [
+        ("CUDAExecutionProvider", {
+            "device_id": 0,
+        }),
+        "CPUExecutionProvider",
+    ]
+
     app.state.session = ort.InferenceSession(
-        str(MODEL_PATH), sess_options=sess_options, providers=["CPUExecutionProvider"]
+        str(MODEL_PATH), sess_options=sess_options, providers=providers
     )
 
     yield

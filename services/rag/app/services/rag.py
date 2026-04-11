@@ -47,6 +47,7 @@ async def ingest_document(
         dense_vectors=dense_vectors,
         sparse_vectors=sparse_vectors,
         metadatas=chunks,
+        upsert_batch_size=3,
         log=log,
     )
 

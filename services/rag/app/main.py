@@ -44,15 +44,20 @@ async def process_dataset(
                     qdrant=qdrant,
                     embedder=embedder,
                     with_sparse=True,
-                    batch_size=16,  # Try to change
+                    batch_size=16,
                 )
                 success = True
                 break
-            except Exception:
+            except Exception as e:
+                print("type:", type(e))
+                print("args:", e.args)
+                print("repr:", repr(e))
+                print("Exception was raised")
                 if i < retries - 1:
                     await asyncio.sleep(2**i)
 
         if not success:
+            print("Not success")
             error_files.append(str(file_path))
 
     if error_files:
